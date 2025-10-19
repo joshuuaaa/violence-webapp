@@ -1,0 +1,45 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run FastAPI server",
+			"type": "shell",
+			"command": "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000",
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run FastAPI server",
+			"type": "shell",
+			"command": "/home/jane/violence_fire_detection/.venv/bin/python -m uvicorn backend.app.main:app --host 0.0.0.0 --port 8000",
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run FastAPI server (venv)",
+			"type": "shell",
+			"command": "/home/jane/violence_fire_detection/.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000",
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run FastAPI server (venv)",
+			"type": "shell",
+			"command": "/home/jane/violence_fire_detection/.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000",
+			"isBackground": true,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "build"
+		}
+	]
+}

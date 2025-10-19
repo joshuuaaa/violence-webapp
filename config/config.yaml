@@ -1,0 +1,12 @@
+enable_fire: true
+enable_violence: true
+fire_model_weights: models/best.pt
+fire_threshold: 0.04
+fps: 15
+post_roll_seconds: 5
+pre_roll_seconds: 3
+recording_enabled: true
+recordings_dir: recordings
+violence_model_path: models/violence_model.keras
+violence_sequence_length: 10
+violence_threshold: 0.6

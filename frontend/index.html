@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Smart CCTV</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; color: #111; }
+    header { padding: 12px 16px; background: #0f172a; color: #fff; }
+    main { padding: 16px; display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #f1f5f9; }
+    canvas, video { width: 100%; max-width: 100%; border-radius: 8px; }
+    label { display: block; margin-top: 8px; }
+    input[type=range] { width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 6px 8px; text-align: left; font-size: 14px; }
+    .alert { color: #b91c1c; font-weight: 600; }
+    .ok { color: #059669; font-weight: 600; }
+  </style>
+</head>
+<body>
+<header>
+  <h2>Smart CCTV — Violence + Fire Detection</h2>
+</header>
+<main>
+  <section class="card">
+    <h3>Live Feed</h3>
+    <div class="row" style="gap:12px;">
+      <button id="startBtn">Start</button>
+      <button id="stopBtn">Stop</button>
+      <span>FPS: <span id="fpsLabel">5</span></span>
+      <span class="pill" id="statusPill">Idle</span>
+    </div>
+    <video id="video" autoplay playsinline muted style="display:none;"></video>
+    <canvas id="canvas"></canvas>
+    <audio id="beep"></audio>
+    <div style="margin-top:8px;">
+      <span>Violence: <strong id="violenceScore">-</strong></span>
+      <span style="margin-left:12px;">Alerts: <strong id="alertTypes">-</strong></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3>Configuration</h3>
+    <div>
+      <label>
+        Frames per second
+        <input type="range" id="fps" min="1" max="15" value="5"/>
+      </label>
+      <label>
+        Violence threshold
+        <input type="range" id="violenceThreshold" min="0" max="1" step="0.01" value="0.6"/>
+      </label>
+      <label>
+        Sequence length (violence)
+        <input type="range" id="sequenceLength" min="8" max="64" step="2" value="16"/>
+      </label>
+      <label>
+        Fire threshold
+        <input type="range" id="fireThreshold" min="0" max="1" step="0.01" value="0.4"/>
+      </label>
+      <label>
+        Recording enabled
+        <input type="checkbox" id="recordingEnabled" checked/>
+      </label>
+      <div class="row" style="margin-top:8px;">
+        <button id="saveConfig">Save Config</button>
+      </div>
+      <div id="configSaved" style="margin-top:6px; font-size:13px; color:#059669; display:none;">Saved!</div>
+    </div>
+  </section>
+
+  <section class="card" style="grid-column: span 2;">
+    <h3>Dashboard</h3>
+    <canvas id="chart" height="90"></canvas>
+    <h4>Recent Events</h4>
+    <table>
+      <thead><tr><th>Time (UTC)</th><th>Type</th><th>Confidence</th><th>Snapshot</th><th>Video</th></tr></thead>
+      <tbody id="eventsTbody"></tbody>
+    </table>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
