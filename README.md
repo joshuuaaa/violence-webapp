@@ -106,3 +106,66 @@ Place your trained `violence_model.keras` into `models/`. The server auto-loads 
 
 Use `notebooks/violence_training_colab.py` locally or in Colab. It downloads a Kaggle dataset, extracts frames, trains MobileNetV2 + BiLSTM and exports `violence_model.keras`. After training, copy the file to `models/`.
 
+## Quick start (Windows)
+
+You have two ways to run the app on Windows:
+
+- Recommended: WSL2 (Ubuntu) and follow the Linux steps — best compatibility for PyTorch/TensorFlow.
+- Native Windows: fully supported for PyTorch (fire detection). TensorFlow native on Windows is legacy-only; see notes below.
+
+### Option A — WSL2 (recommended)
+
+1) Install WSL2 + Ubuntu from the Microsoft Store.
+2) Open Ubuntu, clone your repo, and follow the Linux quick start above.
+3) Access the app from Windows at http://127.0.0.1:8000/ (WSL2 forwards localhost by default).
+
+### Option B — Native Windows (PowerShell)
+
+1) Install Python (64-bit). For broad compatibility pick Python 3.11.
+
+2) Create and activate a virtual environment, then install base deps:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+3) Install PyTorch (required for fire detection):
+
+- CPU-only wheels:
+
+```powershell
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+```
+
+- For NVIDIA GPU, use the selector at https://pytorch.org/get-started/locally/ and install the command it generates.
+
+4) Run the server:
+
+```powershell
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+```
+
+5) Open the app at http://127.0.0.1:8000/ and click Start to grant camera access.
+
+### Violence detection on Windows
+
+- Easiest path: use WSL2 and install TensorFlow there (Linux wheels are current).
+- Native Windows support for TensorFlow was discontinued after 2.10. If you must run natively, use Python 3.10 and:
+
+```powershell
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install "tensorflow==2.10.1"
+```
+
+Note: The app runs fine without TensorFlow — violence score will show "-" and only fire detection will be active.
+
+### Troubleshooting (Windows)
+
+- "No module named 'torch'": install PyTorch as shown above.
+- First run is slow: `torch.hub` downloads YOLOv5 code; keep internet enabled the first time.
+- Webcam permissions: If your browser blocks camera on plain HTTP, run the app locally (127.0.0.1) or use HTTPS.
+
