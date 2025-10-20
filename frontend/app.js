@@ -17,6 +17,8 @@ const beep = document.getElementById('beep');
 
 let ws = null;
 let streamInterval = null;
+let pingInterval = null;
+let reconnectTimer = null;
 let fps = parseInt(fpsSlider.value, 10);
 fpsLabel.textContent = fps;
 
@@ -69,9 +71,23 @@ async function start() {
   if (streamInterval) return;
   setStatus('Starting...', 'idle');
 
-  const media = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-  video.srcObject = media;
-  await video.play();
+  try {
+    const media = await navigator.mediaDevices.getUserMedia({ 
+      video: { 
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        facingMode: 'user'
+      }, 
+      audio: false 
+    });
+    video.srcObject = media;
+    await video.play();
+  } catch (err) {
+    console.error('Camera access error:', err);
+    alert('Camera access denied or not available: ' + err.message);
+    setStatus('Camera Error', 'idle');
+    return;
+  }
 
   canvas.width = 640;
   canvas.height = 480;
@@ -79,8 +95,25 @@ async function start() {
 
   const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${wsProto}://${location.host}/ws/video`);
-  ws.onopen = () => setStatus('Live', 'live');
-  ws.onclose = () => setStatus('Disconnected');
+  
+  ws.onopen = () => {
+    console.log('WebSocket connected');
+    setStatus('Live', 'live');
+  };
+  
+  ws.onclose = () => {
+    console.log('WebSocket closed');
+    setStatus('Disconnected');
+    if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => { reconnectTimer = null; start(); }, 1500);
+    }
+  };
+  
+  ws.onerror = (err) => {
+    console.error('WebSocket error:', err);
+    setStatus('Connection Error', 'alert');
+  };
 
   ws.onmessage = (evt) => {
     const data = JSON.parse(evt.data);
@@ -90,15 +123,20 @@ async function start() {
       img.onload = () => {
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
-      img.src = data.preview;
-    } else {
-      // fallback: draw from raw video
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Append a dummy query to ensure no caching artefacts in some browsers
+      img.src = data.preview + `#${Date.now()}`;
     }
+    // Always also draw the live raw video as a safety to avoid stale previews
+    try { ctx.drawImage(video, 0, 0, canvas.width, canvas.height); } catch {}
 
     const v = data.violence_score;
     violenceScoreEl.textContent = v === null || v === undefined ? '-' : v.toFixed(2);
     alertTypesEl.textContent = data.alert ? (data.alert_types || []).join(', ') : '-';
+
+    // If model needs more frames to start accurate predictions, indicate that
+    if ((data.violence_buffer ?? 0) < (data.violence_T ?? 16)) {
+      statusPill.textContent = `Warming (${data.violence_buffer ?? 0}/${data.violence_T ?? 16})`;
+    }
 
     if (data.alert) {
       setStatus('Alert', 'alert');
@@ -113,22 +151,54 @@ async function start() {
 
   // Send frames at configured FPS
   const sendFrame = () => {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        ws.send(JSON.stringify({ frame: reader.result }));
-      };
-      reader.readAsDataURL(blob);
-    }, 'image/jpeg', 0.8);
+    // Check if video is still playing
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+      console.warn('Video not ready yet');
+      return;
+    }
+    
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not ready, state:', ws ? ws.readyState : 'null');
+      return;
+    }
+    
+    try {
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error('Failed to create blob from canvas');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try {
+            ws.send(JSON.stringify({ frame: reader.result }));
+          } catch (err) {
+            console.error('Failed to send frame:', err);
+          }
+        };
+        reader.onerror = (err) => console.error('FileReader error:', err);
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.8);
+    } catch (err) {
+      console.error('Error in sendFrame:', err);
+    }
   };
+  
   streamInterval = setInterval(sendFrame, 1000 / fps);
+  pingInterval = setInterval(() => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: 'ping', t: Date.now() })); } catch {}
+    }
+  }, 10000);
+  console.log('Started sending frames at', fps, 'FPS');
 }
 
 function stop() {
   if (streamInterval) clearInterval(streamInterval);
   streamInterval = null;
+  if (pingInterval) clearInterval(pingInterval);
+  pingInterval = null;
   if (ws) ws.close();
   ws = null;
   if (video.srcObject) {

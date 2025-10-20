@@ -1,4 +1,5 @@
 import os
+import asyncio
 import io
 import json
 from datetime import datetime
@@ -22,12 +23,35 @@ DEFAULT_CONFIG = {
     "fps": 5,
     "enable_violence": True,
     "enable_fire": True,
-    "violence_sequence_length": 16,
+    "violence_sequence_length": 16,  # MUST match model training (16 frames)
     "violence_threshold": 0.6,
+    "violence_ema_alpha": 0.6,
+    "violence_sustain_frames": 3,
+    "violence_release_frames": 3,
+    "violence_motion_min_ratio": 0.02,
+    # Person gate (optional): require at least N persons for violence alert
+    "enable_person_gate": True,
+    "person_conf_threshold": 0.35,
+    "person_every_n": 3,
+    "violence_min_persons": 2,
+    "person_ttl_seconds": 1.0,
+    "person_max_pair_distance_ratio": 0.18,
+    "person_min_pair_iou": 0.05,
     "fire_threshold": 0.4,
+    "fire_min_area": 800,
+    "fire_sustain_frames": 2,
+    "fire_release_frames": 2,
+    "fire_allowed_labels": ["fire"],
+    "fire_backend": "yolov5",
+    "fire_color_gate_enabled": True,
+    "fire_color_min_ratio": 0.25,
+    "fire_color_min_ratio_small": 0.12,
+    "fire_color_small_area": 800,
+    "fire_iou_min": 0.3,
+    "fire_motion_min_ratio": 0.0,
     "violence_model_path": "models/violence_model.keras",
     "fire_model_weights": "models/best.pt",
-    "recording_enabled": True,
+    "recording_enabled": False,  # Disable recording by default for testing
     "pre_roll_seconds": 3,
     "post_roll_seconds": 5,
     "recordings_dir": "recordings",
@@ -140,19 +164,70 @@ def stats():
 async def ws_video(ws: WebSocket):
     await ws.accept()
     db = SessionLocal()
+    print("[WebSocket] Client connected")
     try:
         while True:
-            msg = await ws.receive_text()
-            data = json.loads(msg)
-            # Expected JSON: { "frame": "data:image/jpeg;base64,..." }
-            frame_b64 = data.get("frame")
-            if not frame_b64:
+            try:
+                # Receive at least one message, then quickly drain to get the most recent frame
+                msg = await ws.receive_text()
+                # Drain backlog to avoid processing stale frames when inference is slow
+                while True:
+                    try:
+                        nxt = await asyncio.wait_for(ws.receive_text(), timeout=0.0001)
+                        msg = nxt
+                    except asyncio.TimeoutError:
+                        break
+                    except WebSocketDisconnect:
+                        raise
+                data = json.loads(msg)
+                # Keepalive: respond to ping
+                if isinstance(data, dict) and data.get("type") == "ping":
+                    try:
+                        await ws.send_text(json.dumps({"type": "pong"}))
+                    except Exception:
+                        pass
+                    continue
+                # Expected JSON: { "frame": "data:image/jpeg;base64,..." }
+                frame_b64 = data.get("frame")
+                if not frame_b64:
+                    # Ignore non-frame messages quietly
+                    continue
+                frame_bgr, (w, h) = engine.decode_frame(frame_b64)
+            except WebSocketDisconnect:
+                print("[WebSocket] Client disconnected during receive")
+                break
+            except json.JSONDecodeError as e:
+                print(f"[WebSocket] JSON decode error: {e}")
                 continue
-            frame_bgr, (w, h) = engine.decode_frame(frame_b64)
+            except Exception as e:
+                print(f"[WebSocket] Frame decode error: {e}")
+                continue
             # Ensure fixed frame size for recorder consistency
             frame_bgr = cv2.resize(frame_bgr, (640, 480))
-            # Run inference
-            result = engine.run(frame_bgr)
+            # Run inference (guard against occasional model errors)
+            try:
+                result = engine.run(frame_bgr)
+            except Exception as e:
+                # Don't crash the websocket loop on inference errors.
+                # Send a fallback preview so the UI doesn't freeze on a stale frame.
+                print(f"[WebSocket] Inference error: {e}")
+                overlay = frame_bgr
+                preview = engine.encode_jpeg(overlay, 80)
+                out = {
+                    "preview": preview,
+                    "violence_score": None,
+                    "fire_boxes": [],
+                    "alert": False,
+                    "alert_types": [],
+                    "snapshot": None,
+                    "video": recorder.active_path
+                }
+                try:
+                    await ws.send_text(json.dumps(out))
+                except Exception as se:
+                    print(f"[WebSocket] Send error after inference failure: {se}")
+                    break
+                continue
             # Draw overlays for preview
             overlay = engine.draw_overlays(frame_bgr, result)
             # Update recorder
@@ -204,8 +279,15 @@ async def ws_video(ws: WebSocket):
                 "snapshot": snapshot_path,
                 "video": recorder.active_path
             }
-            await ws.send_text(json.dumps(out))
+            try:
+                await ws.send_text(json.dumps(out))
+            except Exception as e:
+                print(f"[WebSocket] Send error: {e}")
+                break
     except WebSocketDisconnect:
-        pass
+        print("[WebSocket] Client disconnected normally")
+    except Exception as e:
+        print(f"[WebSocket] Unexpected error: {e}")
     finally:
+        print("[WebSocket] Cleaning up connection")
         db.close()
