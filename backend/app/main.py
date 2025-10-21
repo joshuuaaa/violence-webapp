@@ -31,6 +31,7 @@ DEFAULT_CONFIG = {
     "violence_motion_min_ratio": 0.02,
     # Person gate (optional): require at least N persons for violence alert
     "enable_person_gate": True,
+    "person_require_proximity": False,
     "person_conf_threshold": 0.35,
     "person_every_n": 3,
     "person_model_name": "yolov5n",

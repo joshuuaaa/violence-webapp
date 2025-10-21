@@ -132,7 +132,9 @@ class InferenceEngine:
                     # no recent detection -> keep gate closed
                     persons_ok = False
                     person_gate_reason = "no_recent_person_detection"
-                if persons_ok and (person_count or 0) >= 2:
+                # Optional proximity requirement (distance/IoU). Can be disabled via config.
+                require_prox = bool(self.config.get("person_require_proximity", False))
+                if require_prox and persons_ok and (person_count or 0) >= 2:
                     try:
                         h, w = frame_bgr.shape[:2]
                         diag = (w**2 + h**2) ** 0.5

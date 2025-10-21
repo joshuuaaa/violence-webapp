@@ -13,6 +13,7 @@ class ConfigModel(BaseModel):
     violence_release_frames: int = 3  # consecutive frames < threshold to clear
     violence_motion_min_ratio: float = 0.02  # require basic motion for violence alert
     enable_person_gate: bool = True
+    person_require_proximity: bool = False
     person_conf_threshold: float = 0.35
     person_every_n: int = 3
     person_model_name: str = "yolov5n"
