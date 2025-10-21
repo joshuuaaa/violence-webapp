@@ -1,5 +1,5 @@
 enable_fire: true
-enable_person_gate: true
+enable_person_gate: false
 enable_violence: true
 fire_allowed_labels:
 - fire
@@ -14,7 +14,7 @@ fire_motion_min_ratio: 0.02
 fire_release_frames: 2
 fire_sustain_frames: 2
 fire_threshold: 0.5
-fps: 10
+fps: 8
 person_conf_threshold: 0.35
 person_every_n: 3
 person_max_pair_distance_ratio: 0.18
@@ -31,4 +31,4 @@ violence_motion_min_ratio: 0.02
 violence_release_frames: 3
 violence_sequence_length: 16
 violence_sustain_frames: 4
-violence_threshold: 0.75
+violence_threshold: 0.6

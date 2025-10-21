@@ -20,6 +20,7 @@ let streamInterval = null;
 let pingInterval = null;
 let reconnectTimer = null;
 let fps = parseInt(fpsSlider.value, 10);
+let sendingFrame = false; // prevent piling up encode/send operations
 fpsLabel.textContent = fps;
 
 function setStatus(text, theme = 'idle') {
@@ -161,12 +162,24 @@ async function start() {
       console.warn('WebSocket not ready, state:', ws ? ws.readyState : 'null');
       return;
     }
+
+    // Backpressure: if the browser WebSocket buffer is large, drop this frame
+    // This prevents client-side buffering and high latency when inference/network is slow
+    if (ws.bufferedAmount > 512 * 1024) { // 512KB threshold
+      // Drop frame silently; next tick will try again
+      return;
+    }
+
+    // Avoid overlapping toBlob/FileReader operations that cause queueing
+    if (sendingFrame) return;
     
     try {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      sendingFrame = true;
       canvas.toBlob((blob) => {
         if (!blob) {
           console.error('Failed to create blob from canvas');
+          sendingFrame = false;
           return;
         }
         const reader = new FileReader();
@@ -175,13 +188,16 @@ async function start() {
             ws.send(JSON.stringify({ frame: reader.result }));
           } catch (err) {
             console.error('Failed to send frame:', err);
+          } finally {
+            sendingFrame = false;
           }
         };
-        reader.onerror = (err) => console.error('FileReader error:', err);
+        reader.onerror = (err) => { console.error('FileReader error:', err); sendingFrame = false; };
         reader.readAsDataURL(blob);
       }, 'image/jpeg', 0.8);
     } catch (err) {
       console.error('Error in sendFrame:', err);
+      sendingFrame = false;
     }
   };
   
