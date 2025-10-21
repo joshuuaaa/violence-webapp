@@ -15,6 +15,8 @@ class ConfigModel(BaseModel):
     enable_person_gate: bool = True
     person_conf_threshold: float = 0.35
     person_every_n: int = 3
+    person_model_name: str = "yolov5n"
+    person_infer_size: int = 416
     violence_min_persons: int = 2
     person_ttl_seconds: float = 1.0  # cache person detections for this time window
     person_max_pair_distance_ratio: float = 0.18  # fraction of frame diagonal for proximity
@@ -29,6 +31,8 @@ class ConfigModel(BaseModel):
     fire_color_min_ratio_small: float = 0.12
     fire_color_small_area: int = 800
     fire_iou_min: float = 0.3
+    fire_infer_size: int = 512
+    fire_every_n: int = 2
     fire_backend: str = "yolov5"
     fire_motion_min_ratio: float = 0.0
     violence_model_path: str = "models/violence_model.keras"

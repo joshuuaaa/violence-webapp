@@ -33,6 +33,8 @@ DEFAULT_CONFIG = {
     "enable_person_gate": True,
     "person_conf_threshold": 0.35,
     "person_every_n": 3,
+    "person_model_name": "yolov5n",
+    "person_infer_size": 416,
     "violence_min_persons": 2,
     "person_ttl_seconds": 1.0,
     "person_max_pair_distance_ratio": 0.18,
@@ -49,6 +51,8 @@ DEFAULT_CONFIG = {
     "fire_color_small_area": 800,
     "fire_iou_min": 0.3,
     "fire_motion_min_ratio": 0.0,
+    "fire_infer_size": 512,
+    "fire_every_n": 2,
     "violence_model_path": "models/violence_model.keras",
     "fire_model_weights": "models/best.pt",
     "recording_enabled": False,  # Disable recording by default for testing

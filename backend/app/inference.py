@@ -17,6 +17,9 @@ class InferenceEngine:
         self.person_frame_count = 0
         self._last_person_dets = None  # cache of last person detections (list of boxes)
         self._last_person_time = 0.0
+        # Fire throttling/cache
+        self._fire_frame_count = 0
+        self._last_fire_boxes = []
 
         if self.config.get("enable_violence", True):
             v_path = self.config.get("violence_model_path") or os.path.join("models", "violence_model.keras")
@@ -44,12 +47,15 @@ class InferenceEngine:
                 motion_min_ratio=float(self.config.get("fire_motion_min_ratio", 0.0)),
                 color_min_ratio_small=float(self.config.get("fire_color_min_ratio_small", 0.12)),
                 color_small_area=int(self.config.get("fire_color_small_area", 800)),
+                infer_size=int(self.config.get("fire_infer_size", 512)),
             )
         # Optional person detector gate
         if self.config.get("enable_person_gate", True):
             try:
                 self.person_detector = PersonDetector(
-                    conf=float(self.config.get("person_conf_threshold", 0.35))
+                    conf=float(self.config.get("person_conf_threshold", 0.35)),
+                    model_name=str(self.config.get("person_model_name", "yolov5n")),
+                    infer_size=int(self.config.get("person_infer_size", 416))
                 )
             except Exception as e:
                 print(f"[Inference] Person detector init error: {e}")
@@ -174,7 +180,13 @@ class InferenceEngine:
 
         # Fire
         if self.fire_model is not None:
-            boxes = self.fire_model.predict(frame_bgr)
+            every_n = max(1, int(self.config.get("fire_every_n", 2)))
+            if (self._fire_frame_count % every_n) == 0:
+                boxes = self.fire_model.predict(frame_bgr)
+                self._last_fire_boxes = boxes
+            else:
+                boxes = self._last_fire_boxes
+            self._fire_frame_count = (self._fire_frame_count + 1) % 1000000
             result["fire_boxes"] = boxes
             if self.fire_model.is_alert(boxes):
                 result["alert"] = True

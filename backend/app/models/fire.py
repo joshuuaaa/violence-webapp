@@ -25,6 +25,7 @@ class FireModel:
         motion_min_ratio: float = 0.0,
         color_min_ratio_small: float = 0.12,
         color_small_area: int = 800,
+        infer_size: int = 512,
     ):
         self.threshold = threshold
         self.min_area = int(min_area)
@@ -50,6 +51,8 @@ class FireModel:
         # Optional motion gate inside detected boxes
         self.motion_min_ratio = float(motion_min_ratio)
         self._prev_gray = None
+        # Inference size for YOLOv5
+        self.infer_size = int(infer_size) if infer_size else 512
 
         if self.backend == "yolov5":
             if torch is None:
@@ -85,7 +88,8 @@ class FireModel:
             if self.model is None:
                 return []
             try:
-                results = self.model(frame_bgr)
+                # Run YOLOv5 at a reduced size for lower latency (configurable)
+                results = self.model(frame_bgr, size=self.infer_size)
             except Exception as e:
                 print(f"[FireModel] inference error: {e}")
                 return []
