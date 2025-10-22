@@ -32,6 +32,14 @@ class InferenceEngine:
                 ema_alpha=float(self.config.get("violence_ema_alpha", 0.6)),
                 sustain_frames=int(self.config.get("violence_sustain_frames", 3)),
                 release_frames=int(self.config.get("violence_release_frames", 3)),
+                output_mode=str(self.config.get("violence_output_mode", "auto")),
+                softmax_index=int(self.config.get("violence_softmax_index", 1)),
+                invert_score=bool(self.config.get("violence_invert_score", False)),
+                temperature=float(self.config.get("violence_temperature", 1.0)),
+                auto_invert=bool(self.config.get("violence_auto_invert", True)),
+                auto_invert_warmup=int(self.config.get("violence_auto_invert_warmup", 32)),
+                auto_invert_high=float(self.config.get("violence_auto_invert_high", 0.8)),
+                auto_invert_low=float(self.config.get("violence_auto_invert_low", 0.2)),
             )
             # Optional secondary for fusion/confirmation
             if bool(self.config.get("enable_violence_secondary", False)):
@@ -121,6 +129,21 @@ class InferenceEngine:
                     # Use primary score but gate alert on secondary confirmation later
                     eff_score = v_score
             result["violence_score"] = eff_score
+            # Expose raw vs smoothed probability and raw output shape for debugging/overlay
+            try:
+                if hasattr(self.violence_model, "last_prob_raw") and self.violence_model.last_prob_raw is not None:
+                    result["violence_prob_raw"] = float(self.violence_model.last_prob_raw)
+                if hasattr(self.violence_model, "last_prob") and self.violence_model.last_prob is not None:
+                    result["violence_prob_smoothed"] = float(self.violence_model.last_prob)
+                if hasattr(self.violence_model, "last_raw_shape") and self.violence_model.last_raw_shape is not None:
+                    # Convert numpy shape to a simple list for JSON
+                    shp = self.violence_model.last_raw_shape
+                    try:
+                        result["violence_raw_shape"] = list(shp) if hasattr(shp, "__iter__") else shp
+                    except Exception:
+                        result["violence_raw_shape"] = str(shp)
+            except Exception:
+                pass
             if s_score is not None:
                 result["violence_secondary_score"] = s_score
             # Motion gate: compute ratio of changed pixels using simple frame differencing
@@ -268,9 +291,14 @@ class InferenceEngine:
         if v is not None:
             color = (0, 255, 255) if v < 0.5 else (0, 0, 255)
             cv2.putText(out, f"Violence: {v:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            # Optional tiny debug line for raw vs smoothed prob
+            vr = result.get("violence_prob_raw")
+            vs = result.get("violence_prob_smoothed")
+            if vr is not None and vs is not None:
+                cv2.putText(out, f"Raw/Sm: {vr:.2f}/{vs:.2f}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180,180,180), 1)
 
         # Draw gate info and alert banner
-        y = 55
+        y = 70 if result.get("violence_prob_raw") is not None else 55
         if result.get("persons_ok") is not None:
             cv2.putText(out, f"Persons OK: {result.get('persons_ok')}", (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1)
             y += 20

@@ -29,6 +29,15 @@ DEFAULT_CONFIG = {
     "violence_sustain_frames": 6,
     "violence_release_frames": 3,
     "violence_motion_min_ratio": 0.04,
+    # Violence output interpretation knobs
+    "violence_output_mode": "auto",  # auto | sigmoid | softmax
+    "violence_softmax_index": 1,
+    "violence_invert_score": False,
+    "violence_temperature": 1.0,
+    "violence_auto_invert": True,
+    "violence_auto_invert_warmup": 32,
+    "violence_auto_invert_high": 0.8,
+    "violence_auto_invert_low": 0.2,
     # Person gate (optional): require at least N persons for violence alert
     "enable_person_gate": True,
     "person_require_proximity": False,

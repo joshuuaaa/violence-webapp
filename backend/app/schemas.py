@@ -12,6 +12,16 @@ class ConfigModel(BaseModel):
     violence_sustain_frames: int = 6  # consecutive frames >= threshold to trigger
     violence_release_frames: int = 3  # consecutive frames < threshold to clear
     violence_motion_min_ratio: float = 0.04  # require basic motion for violence alert
+    # Violence output interpretation knobs
+    violence_output_mode: str = "auto"  # auto | sigmoid | softmax
+    violence_softmax_index: int = 1
+    violence_invert_score: bool = False
+    violence_temperature: float = 1.0
+    # Auto-invert heuristic for single-output heads if idle scores look inverted
+    violence_auto_invert: bool = True
+    violence_auto_invert_warmup: int = 32
+    violence_auto_invert_high: float = 0.8
+    violence_auto_invert_low: float = 0.2
     enable_person_gate: bool = True
     person_require_proximity: bool = False
     person_conf_threshold: float = 0.35
