@@ -36,6 +36,15 @@ class ConfigModel(BaseModel):
     fire_every_n: int = 3
     fire_backend: str = "yolov5"
     fire_motion_min_ratio: float = 0.0
+    # Secondary violence model (optional re-ranker/ensemble)
+    enable_violence_secondary: bool = False
+    violence_secondary_backend: str = "onnx"
+    violence_secondary_model_path: str = "models/violence_secondary.onnx"
+    violence_secondary_T: int = 16
+    violence_secondary_input_size: int = 224
+    violence_fusion_mode: str = "confirm"  # confirm | average
+    violence_fusion_weight_secondary: float = 0.5
+    violence_secondary_threshold: float = 0.7
     violence_model_path: str = "models/violence_model.keras"
     fire_model_weights: str = "models/best.pt"
     recording_enabled: bool = True

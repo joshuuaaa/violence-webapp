@@ -55,6 +55,15 @@ DEFAULT_CONFIG = {
     "fire_infer_size": 640,
     "fire_every_n": 3,
     "violence_model_path": "models/violence_model.keras",
+    # Secondary violence (optional ensemble/confirm)
+    "enable_violence_secondary": False,
+    "violence_secondary_backend": "onnx",
+    "violence_secondary_model_path": "models/violence_secondary.onnx",
+    "violence_secondary_T": 16,
+    "violence_secondary_input_size": 224,
+    "violence_fusion_mode": "confirm",
+    "violence_fusion_weight_secondary": 0.5,
+    "violence_secondary_threshold": 0.7,
     "fire_model_weights": "models/best.pt",
     "recording_enabled": False,  # Disable recording by default for testing
     "pre_roll_seconds": 3,

@@ -4,6 +4,7 @@ import base64
 import numpy as np
 from typing import Tuple, Dict, Any
 from .models.violence import ViolenceModel
+from .models.violence_secondary import SecondaryViolenceModel
 from .models.fire import FireModel
 from .models.person import PersonDetector
 
@@ -11,6 +12,7 @@ class InferenceEngine:
     def __init__(self, config: dict):
         self.config = config
         self.violence_model = None
+        self.violence_secondary = None
         self.fire_model = None
         self.prev_gray = None  # for motion estimation
         self.person_detector = None
@@ -31,6 +33,20 @@ class InferenceEngine:
                 sustain_frames=int(self.config.get("violence_sustain_frames", 3)),
                 release_frames=int(self.config.get("violence_release_frames", 3)),
             )
+            # Optional secondary for fusion/confirmation
+            if bool(self.config.get("enable_violence_secondary", False)):
+                try:
+                    self.violence_secondary = SecondaryViolenceModel(
+                        model_path=str(self.config.get("violence_secondary_model_path", "models/violence_secondary.onnx")),
+                        backend=str(self.config.get("violence_secondary_backend", "onnx")),
+                        T=int(self.config.get("violence_secondary_T", self.config.get("violence_sequence_length", 16))),
+                        input_size=int(self.config.get("violence_secondary_input_size", 224)),
+                    )
+                    if not self.violence_secondary.available():
+                        self.violence_secondary = None
+                except Exception as e:
+                    print(f"[Inference] Secondary violence init error: {e}")
+                    self.violence_secondary = None
         if self.config.get("enable_fire", True):
             f_weights = self.config.get("fire_model_weights") or os.path.join("models", "best.pt")
             self.fire_model = FireModel(
@@ -85,7 +101,28 @@ class InferenceEngine:
         # Violence
         if self.violence_model is not None:
             v_score = self.violence_model.update_and_predict(frame_bgr)
-            result["violence_score"] = v_score
+            s_score = None
+            # Optional secondary fusion/confirmation using primary's preprocessed buffer
+            if self.violence_secondary is not None and hasattr(self.violence_model, "buffer"):
+                try:
+                    s_score = self.violence_secondary.predict_from_buffer(self.violence_model.buffer)
+                except Exception as e:
+                    print(f"[Inference] Secondary violence predict error: {e}")
+                    s_score = None
+            # Fuse scores before hysteresis
+            fusion_mode = str(self.config.get("violence_fusion_mode", "confirm")).lower()
+            w2 = float(self.config.get("violence_fusion_weight_secondary", 0.5))
+            eff_score = v_score
+            if s_score is not None and v_score is not None:
+                if fusion_mode == "average":
+                    w2 = max(0.0, min(1.0, w2))
+                    eff_score = (1.0 - w2) * v_score + w2 * s_score
+                elif fusion_mode == "confirm":
+                    # Use primary score but gate alert on secondary confirmation later
+                    eff_score = v_score
+            result["violence_score"] = eff_score
+            if s_score is not None:
+                result["violence_secondary_score"] = s_score
             # Motion gate: compute ratio of changed pixels using simple frame differencing
             motion_ratio = None
             try:
@@ -171,7 +208,14 @@ class InferenceEngine:
                         pass
             result["persons_ok"] = persons_ok
             # Final violence alert requires score + motion + persons (if enabled)
-            is_v = self.violence_model.is_alert(v_score)
+            # Apply hysteresis on effective score
+            is_v = self.violence_model.is_alert(result.get("violence_score"))
+            # Optional confirm gate using secondary
+            if is_v and self.violence_secondary is not None and fusion_mode == "confirm":
+                sec_thr = float(self.config.get("violence_secondary_threshold", 0.7))
+                if (result.get("violence_secondary_score") or 0.0) < sec_thr:
+                    is_v = False
+                    person_gate_reason = (person_gate_reason or "") + "; no_secondary_confirm"
             if motion_ok and persons_ok and is_v:
                 result["alert"] = True
                 result["alert_types"].append("violence")
